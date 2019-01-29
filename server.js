@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const MongoClient = require('mongodb').MongoClient;
 const ObjectId = require('mongodb').ObjectID;
 const isAuth = require('./is-auth');
+const axios = require('axios');
 const path = require('path');
 const app = express();
 const url = 'mongodb+srv://emer:vzgo@cluster0-fyxxq.mongodb.net/test?retryWrites=true'
@@ -87,32 +88,45 @@ app.delete('/api/wishlist/:deleteid', isAuth, (req, res) => {
     })
 })
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', (req, res) => {
   const { user } = req.body
-  MongoClient.connect(url, { useNewUrlParser: true })
-    .then(client => {
-      client
-        .db('test')
-        .collection('user')
-        .updateOne({ _id: user._id }, { $set: user }, { upsert: true })
-      client.close();
-    })
-    .catch(err => {
-      console.log(err);
-      client.close();
-    })
+  const appToken = '2274361302637500|UZM9d63xxNjwt8-Z5lZcsL_d4X4' // got from request specifing  clientId and clientSecret
+  const link = 'https://graph.facebook.com/debug_token?input_token=' + user.userToken + '&access_token=' + appToken
+  axios.get(link)
+    .then(response => {
+      console.log(response.data.data.user_id)
+      if (!response.data.data.user_id) {
+        res.status(400).json({ error: "Invalid User" })
+      } else {
+        delete user.userToken
+        MongoClient.connect(url, { useNewUrlParser: true })
+          .then(client => {
+            client
+              .db('test')
+              .collection('user')
+              .updateOne({ _id: user._id }, { $set: user }, { upsert: true })
+            client.close();
+          })
+          .catch(err => {
+            console.log(err);
+            client.close();
+          })
 
-
-  jwt.sign({ user }, 'tigranssecretkey', (err, token) => {
-    res.json({
-      token
-    });
-  });
+ 
+        jwt.sign({ user }, 'tigranssecretkey', (err, token) => {
+          res.json({
+            token
+          });
+        });
+      }
+    })
 });
 
-app.get('/*', (req, res) => {
-  res.sendFile(path.join(__dirname, "client", 'build', 'index.html'));
-})
+
+
+// app.get('/*', (req, res) => {
+//   res.sendFile(path.join(__dirname, "client", 'build', 'index.html'));
+// })
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`)
 });
